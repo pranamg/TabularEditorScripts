@@ -1,10 +1,9 @@
 /*
- * Title: Create Databricks Relationships
+ * Title: Add Databricks Metadata descriptions
  * Author: Johnny Winter, greyskullanalytics.com
  *
- * This script, when executed, will loop through the currently selected tables and send a query to the Databricks Information Schema tables to see if any foreign keys
- * have been defined. Where foreign keys are identified, the script will create relationships between the tables in the semantic model.
- * With the exception of dimension columns that are datetime type, key columns will be hidden once relationshsips are created, with primary keys marked as primary keys and IsAvailableInMDX set to false.
+ * This script, when executed, will loop through the currently selected tables and send a query to Databricks to see if each table has metadata descriptions defined in Unity Catalog.
+ * Where a description exists, this will be added to the semantic model description.
  * Notes:
  *  -   This script requires the Simba Spark ODBC Driver to be installed (download from https://www.databricks.com/spark/odbc-drivers-download)
  *  -   Each run of the script will prompt the user for a Databricks Personal Access Token
@@ -341,52 +340,14 @@ foreach (var t in Selected.Tables)
 {
     string mQuery = t.Partitions[t.Name].Expression;
     var connectionInfo = PowerQueryMParser.ParseMQuery(mQuery);
-    var rels = 0;
+    var columnDescriptions = 0;
+    var tableDescriptions = 0;
     // Access individual components
     string serverHostname = connectionInfo.ServerHostname;
     string httpPath = connectionInfo.HttpPath;
     string databaseName = connectionInfo.DatabaseName;
     string schemaName = connectionInfo.SchemaName;
     string tableName = connectionInfo.TableName;
-
-    //use this query to see if any primary/foreign key relationships have been defined in Unity Catalog
-    var query =
-        @"
-        SELECT
-            fk.table_catalog AS fk_table_catalog,
-            fk.table_schema AS fk_table_schema,
-            fk.table_name AS fk_table_name,
-            fk.column_name AS fk_column,
-            pk.table_catalog AS pk_table_catalog,
-            pk. table_schema AS pk_table_schema,
-            pk.table_name AS pk_table_name,
-            pk.column_name AS pk_column
-        FROM
-            "
-        + databaseName
-        + @".information_schema.key_column_usage fk
-            INNER JOIN "
-        + databaseName
-        + @".information_schema.referential_constraints rc
-                ON fk.constraint_catalog = rc.constraint_catalog
-                AND fk.constraint_schema = rc.constraint_schema
-                AND fk.constraint_name = rc.constraint_name
-            INNER JOIN "
-        + databaseName
-        + @".information_schema.key_column_usage pk
-                ON rc.unique_constraint_catalog = pk.constraint_catalog
-                AND rc.unique_constraint_schema = pk.constraint_schema
-            AND rc.unique_constraint_name = pk.constraint_name
-        WHERE
-            fk.table_schema = '"
-        + schemaName
-        + @"'
-            AND fk.table_name = '"
-        + tableName
-        + @"'
-        AND fk.position_in_unique_constraint = 1
-";
-
     //set DBX connection string
     var odbcConnStr =
         @"DSN=Simba Spark;driver=C:\Program Files\Simba Spark ODBC Driver;host="
@@ -429,105 +390,117 @@ Please check the following prequisites:
         return;
     }
 
-    //send query
-    OdbcDataAdapter da = new OdbcDataAdapter(query, conn);
-    var dbxRelationships = new sysData.DataTable();
+    //get table metadata
+    var tableQuery =
+        "SELECT comment FROM "
+        + databaseName
+        + ".information_schema.tables WHERE table_schema = '"
+        + schemaName
+        + "' AND table_name = '"
+        + tableName
+        + "'";
+    OdbcDataAdapter td = new OdbcDataAdapter(tableQuery, conn);
+    var dbxTable = new sysData.DataTable();
 
     try
     {
-        da.Fill(dbxRelationships);
+        td.Fill(dbxTable);
     }
     catch
     {
         Interaction.MsgBox(
             @"Connection failed
 
-    Either: 
-        - the table "
+Either: 
+    - the table "
                 + schemaName
                 + "."
                 + tableName
                 + " does not exist"
                 + @"
-        
-        - you do not have permissions to query this table
-        
-        - the connection timed out. Please check that the SQL Endpoint cluster is running",
+    
+    - you do not have permissions to query this table
+    
+    - the connection timed out. Please check that the SQL Endpoint cluster is running",
             MsgBoxStyle.Critical,
-            "Connection Error"
+            "Connection Error - Table Metadata"
+        );
+        return;
+    }
+    string tableUpdate = "";
+    foreach (sysData.DataRow row in dbxTable.Rows)
+    {
+        if (t.Description != row["comment"].ToString())
+        {
+            t.Description = row["comment"].ToString();
+            tableUpdate = t.Name + " table description updated.";
+        }
+    }
+
+    //get column metadata
+    var columnsQuery = @"DESCRIBE " + databaseName + "." + schemaName + "." + tableName;
+    OdbcDataAdapter da = new OdbcDataAdapter(columnsQuery, conn);
+    var dbxColumns = new sysData.DataTable();
+
+    try
+    {
+        da.Fill(dbxColumns);
+    }
+    catch
+    {
+        Interaction.MsgBox(
+            @"Connection failed
+
+Either: 
+    - the table "
+                + schemaName
+                + "."
+                + tableName
+                + " does not exist"
+                + @"
+    
+    - you do not have permissions to query this table
+    
+    - the connection timed out. Please check that the SQL Endpoint cluster is running",
+            MsgBoxStyle.Critical,
+            "Connection Error - Column Metadata"
         );
         return;
     }
 
-    //for every table in the model, see if it matches a row in the Databricks query
-    foreach (var dt in Model.Tables)
+    //update column descriptions
+    int counter = 0;
+    foreach (sysData.DataRow row in dbxColumns.Rows)
     {
-        //get the source table information
-        string sourceMQuery = dt.Partitions[dt.Name].Expression;
-        var sourceConnectionInfo = PowerQueryMParser.ParseMQuery(sourceMQuery);
-        // Access individual components
-        string sourceSchemaName = sourceConnectionInfo.SchemaName;
-        string sourceTableName = sourceConnectionInfo.TableName;
-
-        foreach (sysData.DataRow row in dbxRelationships.Rows)
+        string sourceColumn = row["col_name"].ToString();
+        if (sourceColumn.Length != 0)
         {
-            if (
-                string.Equals(
-                    sourceSchemaName + "." + sourceTableName,
-                    row["pk_table_schema"].ToString() + "." + row["pk_table_name"].ToString(),
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
+            foreach (var c in t.DataColumns)
             {
-                var dimTable = dt;
-                foreach (var dc in dt.DataColumns)
-                    if (dc.SourceColumn == row["pk_column"].ToString())
-                    {
-                        var dimColumn = dc;
-
-                        foreach (var fc in t.DataColumns)
-                            if (fc.SourceColumn == row["fk_column"].ToString())
-                            {
-                                var factColumn = fc;
-
-                                // Check whether a relationship already exists between the two columns:
-                                if (
-                                    !Model.Relationships.Any(r =>
-                                        r.FromColumn == factColumn && r.ToColumn == dimColumn
-                                    )
-                                )
-                                {
-                                    // If relationships already exists between the two tables, new relationships will be created as inactive:
-                                    var makeInactive = Model.Relationships.Any(r =>
-                                        r.FromTable == t && r.ToTable == dimTable
-                                    );
-
-                                    // Add the new relationship:
-                                    var rel = Model.AddRelationship();
-                                    rel.FromColumn = factColumn;
-                                    rel.ToColumn = dimColumn;
-                                    factColumn.IsHidden = true;
-                                    factColumn.IsAvailableInMDX = false;
-                                    dimColumn.IsKey = true;
-                                    if (dc.DataType != DataType.DateTime)
-                                    {
-                                        dimColumn.IsHidden = true;
-                                        dimColumn.IsAvailableInMDX = false;
-                                    }
-
-                                    if (makeInactive)
-                                        rel.IsActive = false;
-                                    rels = rels + 1;
-                                }
-                            }
-                    }
+                if (c.SourceColumn == sourceColumn && c.Description != row["comment"].ToString())
+                {
+                    c.Description = row["comment"].ToString();
+                    counter = counter + 1;
+                }
             }
         }
     }
-    Interaction.MsgBox(
-        rels + " relationships added to " + t.Name,
-        MsgBoxStyle.Information,
-        "Add relationships"
-    );
+    string msg;
+    if (tableUpdate.Length > 0)
+    {
+        msg =
+            tableUpdate
+            + @"
+
+"
+            + counter
+            + " descriptions updated on "
+            + t.Name;
+    }
+    else
+    {
+        msg = counter + " descriptions updated on " + t.Name;
+    }
+    Interaction.MsgBox(msg, MsgBoxStyle.Information, "Update Metadata Descriptions");
     conn.Close();
 }
