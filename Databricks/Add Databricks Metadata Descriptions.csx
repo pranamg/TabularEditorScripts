@@ -309,12 +309,13 @@ public class PowerQueryMParser
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //main script
 
-// Hide the 'Running Macro' spinbox
-ScriptHelper.WaitFormVisible = false;
+
 
 //check that user has a table selected
 if (Selected.Tables.Count == 0)
 {
+    // toggle the 'Running Macro' spinbox
+    ScriptHelper.WaitFormVisible = false;
     Interaction.MsgBox("Select one or more tables", MsgBoxStyle.Critical, "Table Required");
     return;
 }
@@ -323,6 +324,8 @@ if (Selected.Tables.Count == 0)
 string dbxPAT;
 do
 {
+    // toggle the 'Running Macro' spinbox
+    ScriptHelper.WaitFormVisible = false;
     dbxPAT = MaskedInputHelper.GetMaskedInput(
         "Please enter your Databricks Personal Access Token (needed to connect to the SQL Endpoint)",
         "Personal Access Token"
@@ -343,6 +346,9 @@ do
         );
     }
 } while (string.IsNullOrWhiteSpace(dbxPAT));
+
+// toggle the 'Running Macro' spinbox
+ScriptHelper.WaitFormVisible = true;
 
 //for each selected table, get the Databricks connection info from the partition info
 foreach (var t in Selected.Tables)
@@ -374,6 +380,8 @@ foreach (var t in Selected.Tables)
     }
     catch
     {
+        // toggle the 'Running Macro' spinbox
+        ScriptHelper.WaitFormVisible = false;
         Interaction.MsgBox(
             @"Connection failed
 
@@ -417,6 +425,8 @@ Please check the following prequisites:
     }
     catch
     {
+        // toggle the 'Running Macro' spinbox
+        ScriptHelper.WaitFormVisible = false;
         Interaction.MsgBox(
             @"Connection failed
 
@@ -457,6 +467,8 @@ Either:
     }
     catch
     {
+        // toggle the 'Running Macro' spinbox
+        ScriptHelper.WaitFormVisible = false;
         Interaction.MsgBox(
             @"Connection failed
 
@@ -510,6 +522,10 @@ Either:
     {
         msg = counter + " descriptions updated on " + t.Name;
     }
+    // toggle the 'Running Macro' spinbox
+    ScriptHelper.WaitFormVisible = false;
     Interaction.MsgBox(msg, MsgBoxStyle.Information, "Update Metadata Descriptions");
+    // toggle the 'Running Macro' spinbox
+    ScriptHelper.WaitFormVisible = true;
     conn.Close();
 }
