@@ -2,11 +2,11 @@
  * Title: Semantic Model Set-Up
  * Author: Johnny Winter, greyskullanalytics.com
  *
- * This script, when executed, will loop through all tables and columns in the model and rename with friendly names. Names in snake_case, camelCase or PascalCase
- * will all be converted to Proper Case.
- *
- * Whilst looping though columns it also sets default summarization to none and sets a format string for all DateTime type fields 
- * (currently it sets format 'yyyy-mm-dd' but you can change this on line 61 if you wish).
+ *  This script, when executed, will loop through all tables and columns in the model and rename with friendly names. 
+ *  Names in snake_case, camelCase or PascalCase will all be converted to Proper Case.
+ *  No table selections are required as all tables in the model will be processed, simply run the script.
+ *  Whilst looping though columns it also sets default summarization to none and sets a format string for all DateTime type fields 
+ *  (currently it sets format 'yyyy-mm-dd' but you can change this on line 61 if you wish).
  *
  */
 using System;

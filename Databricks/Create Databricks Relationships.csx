@@ -5,6 +5,15 @@
  * This script, when executed, will loop through the currently selected tables and send a query to the Databricks Information Schema tables to see if any foreign keys
  * have been defined. Where foreign keys are identified, the script will create relationships between the tables in the semantic model.
  * With the exception of dimension columns that are datetime type, key columns will be hidden once relationshsips are created, with primary keys marked as primary keys and IsAvailableInMDX set to false.
+ * Step 1:  Select one or more tables in the model. These should be tables which have a foreign key relationship defined in Unity Catalog
+            (typically fact tables, but they could also be bridge tables or outrigger dimensions).
+ * Step 2:  Run this script
+ * Step 3:  Enter your Databricks Personal Access Token when prompted
+ * Step 4:  The script will connect to Databricks and detect where foreign keys exist on the selected table. 
+            If the relationship does not already exist in the semantic model, it will be created.
+            If a relationship already exists between the two tables, the new relationship will be created as inactive
+            For each table processed, a message box will display the number of relationships created.
+ *          Click OK to continue to the next table. 
  * Notes:
  *  -   This script requires the Simba Spark ODBC Driver to be installed (download from https://www.databricks.com/spark/odbc-drivers-download)
  *  -   Each run of the script will prompt the user for a Databricks Personal Access Token

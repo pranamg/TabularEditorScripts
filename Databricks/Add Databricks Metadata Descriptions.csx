@@ -4,6 +4,12 @@
  *
  * This script, when executed, will loop through the currently selected tables and send a query to Databricks to see if each table has metadata descriptions defined in Unity Catalog.
  * Where a description exists, this will be added to the semantic model description.
+ * Step 1:  Select one or more tables in the model
+ * Step 2:  Run this script
+ * Step 3:  Enter your Databricks Personal Access Token when prompted
+ * Step 4:  The script will connect to Databricks and update the table and column descriptions where they exist. 
+ *          For each table processed, a message box will display the number of descriptions updated.
+ *          Click OK to continue to the next table.
  * Notes:
  *  -   This script requires the Simba Spark ODBC Driver to be installed (download from https://www.databricks.com/spark/odbc-drivers-download)
  *  -   Each run of the script will prompt the user for a Databricks Personal Access Token
