@@ -309,6 +309,9 @@ public class PowerQueryMParser
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //main script
 
+// Hide the 'Running Macro' spinbox
+ScriptHelper.WaitFormVisible = false;
+
 //check that user has a table selected
 if (Selected.Tables.Count == 0)
 {
